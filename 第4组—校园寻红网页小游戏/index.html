@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园寻红·打卡研学</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 自定义雷达呼吸动效 */
+        @keyframes radar-pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 20px rgba(220, 38, 38, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+        }
+        .radar-active { animation: radar-pulse 2s infinite; }
+        
+        /* 隐藏滚动条但保留滚动功能 */
+        ::-webkit-scrollbar { display: none; }
+        
+        /* 弹窗渐入动画 */
+        .modal-enter { opacity: 0; transform: scale(0.9); transition: all 0.3s ease-out; }
+        .modal-enter-active { opacity: 1; transform: scale(1); }
+    </style>
+</head>
+<body class="bg-stone-100 min-h-screen font-sans text-gray-800 antialiased selection:bg-red-200 flex flex-col">
+
+    <header class="bg-gradient-to-br from-red-800 to-red-600 pt-12 pb-20 px-6 rounded-b-[2.5rem] shadow-lg relative overflow-hidden flex-shrink-0">
+        <div class="absolute top-0 right-0 -mr-10 -mt-10 w-40 h-40 rounded-full border-4 border-white/10"></div>
+        <div class="absolute bottom-0 left-0 -ml-12 -mb-12 w-32 h-32 rounded-full bg-white/10"></div>
+        
+        <div class="flex justify-between items-center relative z-10">
+            <div>
+                <h1 class="text-3xl font-extrabold tracking-wider text-white drop-shadow-md">校园寻红</h1>
+                <p class="text-red-200 text-sm mt-1 flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    沉浸式党史校史研学
+                </p>
+            </div>
+            <div class="bg-red-900/40 backdrop-blur-sm px-4 py-2 rounded-full border border-red-400/30 shadow-inner">
+                <span class="text-yellow-400 font-mono font-bold text-lg" id="progress-text">0/6</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="px-5 -mt-12 relative z-20 flex-1">
+        <div class="bg-white/95 backdrop-blur-md rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-white">
+            <div class="text-center mb-6">
+                <span class="text-xs font-bold tracking-widest text-gray-400 uppercase">Current Target</span>
+                <h2 class="text-xl font-bold text-gray-800 mt-1" id="target-name">定位中...</h2>
+            </div>
+            
+            <div class="flex justify-center items-center my-8 relative">
+                <div id="radar-circle" class="w-40 h-40 rounded-full border-4 border-red-50 flex flex-col justify-center items-center radar-active bg-white shadow-inner relative z-10">
+                    <div class="w-3 h-3 bg-red-600 rounded-full absolute top-6 shadow-[0_0_10px_rgba(220,38,38,0.8)]"></div>
+                    <span class="text-sm text-gray-500 font-medium">距离目标</span>
+                    <span class="text-4xl font-black text-red-600 tracking-tighter mt-1" id="meter-display">--<span class="text-lg text-gray-400 ml-1">m</span></span>
+                </div>
+            </div>
+
+            <div class="bg-stone-50 rounded-xl p-4 flex items-center justify-between border border-stone-100">
+                <div class="flex items-center">
+                    <div id="gps-dot" class="w-2 h-2 bg-yellow-500 rounded-full mr-2 animate-pulse"></div>
+                    <span class="text-sm text-gray-600 font-medium" id="status-tag">等待 GPS 信号接入</span>
+                </div>
+                <button onclick="simulateArrival()" class="text-xs bg-red-100 text-red-600 font-bold px-4 py-2 rounded-full hover:bg-red-200 transition shadow-sm border border-red-200">模拟到达</button>
+            </div>
+        </div>
+    </main>
+
+    <div id="modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-5 hidden">
+        <div id="modal-content-box" class="bg-white rounded-[2rem] w-full max-w-sm overflow-hidden shadow-2xl modal-enter relative">
+            <div class="relative h-56 w-full bg-stone-200">
+                <img id="modal-img" src="" class="w-full h-full object-cover">
+                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
+                <div class="absolute bottom-4 left-5 pr-5">
+                    <span class="px-2 py-1 bg-red-600/90 text-white text-[10px] font-bold rounded mb-2 inline-block uppercase tracking-wider">地标解锁成功</span>
+                    <h2 id="modal-title" class="text-2xl font-bold text-white drop-shadow-md"></h2>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="bg-orange-50 rounded-xl p-4 border border-orange-100 mb-6">
+                    <p id="modal-content" class="text-sm text-gray-700 leading-relaxed font-medium text-justify"></p>
+                </div>
+                <button onclick="confirmCheckIn()" class="w-full bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white py-4 rounded-2xl font-bold text-lg shadow-[0_4px_15px_rgba(220,38,38,0.4)] transition-all active:scale-95">
+                    完成学习，前往下一站
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cert-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[60] flex flex-col items-center justify-center p-5 hidden">
+        <h2 class="text-2xl font-bold text-white mb-6 tracking-widest">研学圆满完成</h2>
+        <div class="bg-[#fdfbf7] p-6 rounded-lg shadow-2xl w-full max-w-sm relative border-4 border-double border-red-800/30" id="certificate-view">
+            <div class="text-center mb-4">
+                <h3 class="text-xl font-black text-red-800 tracking-widest border-b border-red-800/20 pb-2">荣誉证书</h3>
+            </div>
+            <p class="text-sm text-gray-800 leading-loose">
+                尊敬的同学：<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;恭喜您顺利完成<span class="font-bold text-red-700">“校园寻红·打卡研学”</span>全部 6 个地标的学习任务。在追寻红色足迹的过程中，传承航空报国精神，展现了新时代青年的责任与担当。<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;特发此证，以资鼓励！
+            </p>
+            <div class="mt-8 text-right">
+                <p class="text-xs text-gray-500 font-bold">校园研学组委会</p>
+                <p class="text-xs text-gray-400 mt-1" id="cert-date"></p>
+            </div>
+            <div class="absolute bottom-6 right-8 w-16 h-16 border-4 border-red-600/50 rounded-full flex items-center justify-center transform -rotate-12 opacity-80 pointer-events-none">
+                <span class="text-red-600/50 font-bold text-[10px] tracking-tighter text-center leading-tight">研学<br>打卡</span>
+            </div>
+        </div>
+        <p class="text-white/60 text-sm mt-6 flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+            手机长按证书上方可保存图片
+        </p>
+        <button onclick="location.reload()" class="mt-8 px-8 py-3 rounded-full border border-white/30 text-white hover:bg-white/10 transition">重新体验</button>
+    </div>
+
+    <script>
+        // 1. 6个目标点的数据配置
+        const redPoints = [
+            { id: 0, name: "校史馆", lat: 39.12345, lng: 117.45678, story: "始建于1951年，这里记录了新中国民航高等教育从无到有的跨越。每一件展品都诉说着先辈们扎根蓝天、创业维艰的奋斗精神。", img: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" },
+            { id: 1, name: "冯如雕塑", lat: 39.12400, lng: 117.45700, story: "致敬“中国航空之父”冯如。“航空报国”不仅是雕塑上的文字，更是每一位学子刻在骨子里的使命感与民族自豪感。", img: "https://images.unsplash.com/photo-1584985012588-466d3a9bb763?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" },
+            { id: 2, name: "大礼堂", lat: 39.12500, lng: 117.45800, story: "作为校园文化的精神殿堂，这里曾回荡过无数次誓师蓝天的庄严宣言，见证了学校重大历史时刻与学子的青春芳华。", img: "https://images.unsplash.com/photo-1576495199011-eb94736d05d6?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" },
+            { id: 3, name: "档案馆", lat: 39.12600, lng: 117.45900, story: "档案是凝固的历史。这里珍藏着无数前辈的科研笔记与学术成果，是我们探寻历史精神脉络的重要阵地。", img: "https://images.unsplash.com/photo-1507842217343-583bb7270b66?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" },
+            { id: 4, name: "自强桥", lat: 39.12700, lng: 117.46000, story: "桥名取自“自强不息”之意。走过自强桥，寓意着我们在追求卓越的征途中，无论面对何种风雨，始终保持坚韧不拔的意志。", img: "https://images.unsplash.com/photo-1599939571322-792a326a0cb5?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" },
+            { id: 5, name: "停机坪", lat: 39.12800, lng: 117.46100, story: "这里不仅是实操教学的场所，更是特色的集中展示。站在这里，我们更能感悟到科技兴邦、技能报国的时代担当。", img: "https://images.unsplash.com/photo-1559825481-12a05cc00344?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" }
+        ];
+
+        let currentLevel = 0; 
+        const CHECK_IN_RADIUS = 30; // 设定打卡有效半径（米）
+
+        // 初始化界面
+        function initUI() {
+            document.getElementById('progress-text').innerText = `0/${redPoints.length}`;
+            document.getElementById('target-name').innerText = redPoints[currentLevel].name;
+            
+            // 设置当前日期给证书
+            const today = new Date();
+            document.getElementById('cert-date').innerText = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日`;
+        }
+        initUI();
+
+        // 计算两点经纬度距离 (Haversine formula)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000; 
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        // 调用浏览器 GPS
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(position => {
+                const { latitude, longitude } = position.coords;
+                document.getElementById('status-tag').innerText = "卫星定位已连接";
+                document.getElementById('gps-dot').classList.replace('bg-yellow-500', 'bg-green-500');
+                updateGame(latitude, longitude);
+            }, err => {
+                document.getElementById('status-tag').innerText = "未获取到 GPS 权限";
+                document.getElementById('gps-dot').classList.replace('bg-yellow-500', 'bg-red-500');
+                document.getElementById('gps-dot').classList.remove('animate-pulse');
+            }, { enableHighAccuracy: true });
+        }
+
+        // 刷新游戏状态
+        function updateGame(userLat, userLon) {
+            if (currentLevel >= redPoints.length) return;
+            const target = redPoints[currentLevel];
+            const dist = calculateDistance(userLat, userLon, target.lat, target.lng);
+            
+            document.getElementById('meter-display').innerHTML = `${Math.floor(dist)}<span class="text-lg text-gray-400 ml-1">m</span>`;
+            
+            if (dist < CHECK_IN_RADIUS) {
+                showModal(target);
+            }
+        }
+
+        // 模拟到达按钮 (供网页上测试体验)
+        function simulateArrival() {
+            if (currentLevel < redPoints.length) {
+                showModal(redPoints[currentLevel]);
+            }
+        }
+
+        // 弹出学习视窗
+        function showModal(point) {
+            document.getElementById('modal-title').innerText = point.name;
+            document.getElementById('modal-content').innerText = point.story;
+            document.getElementById('modal-img').src = point.img;
+            
+            const modal = document.getElementById('modal');
+            const modalBox = document.getElementById('modal-content-box');
+            modal.classList.remove('hidden');
+            
+            // 触发 CSS 渐入动画
+            void modalBox.offsetWidth;
+            modalBox.classList.add('modal-enter-active');
+            
+            // 暂停雷达动画
+            document.getElementById('radar-circle').classList.remove('radar-active');
+        }
+
+        // 点击完成学习，进入下一站
+        function confirmCheckIn() {
+            const modal = document.getElementById('modal');
+            const modalBox = document.getElementById('modal-content-box');
+            modalBox.classList.remove('modal-enter-active');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                currentLevel++;
+                document.getElementById('progress-text').innerText = `${currentLevel}/${redPoints.length}`;
+                
+                // 判断是否全部完成
+                if (currentLevel === redPoints.length) {
+                    showCertificate();
+                } else {
+                    // 进入下一关卡
+                    document.getElementById('target-name').innerText = redPoints[currentLevel].name;
+                    document.getElementById('meter-display').innerHTML = `--<span class="text-lg text-gray-400 ml-1">m</span>`;
+                    document.getElementById('radar-circle').classList.add('radar-active');
+                }
+            }, 300); // 配合 CSS 动画的时间
+        }
+
+        // 展示最终证书
+        function showCertificate() {
+            document.getElementById('target-name').innerText = "研学圆满完成！";
+            document.getElementById('meter-display').innerHTML = `0<span class="text-lg text-gray-400 ml-1">m</span>`;
+            document.getElementById('cert-modal').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
